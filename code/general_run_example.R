@@ -1,8 +1,3 @@
-# Read in the configuration file within data-raw that define what model set-up
-# to apply by species
-configuration <- tibble::as_tibble(read.csv(
-  file.path("data-raw", "configuration.csv")
-))
 
 # Download the data and filter the data based upon species-specific
 # depths and latitudes in the configuration file
@@ -22,7 +17,7 @@ data <- configuration |>
   dplyr::ungroup()
 
 # Run the model across all species in the configuration file
-best <- data |>
+index_run <- data |>
   dplyr::mutate(
     # Evaluate the call in family
     family = purrr::map(family, .f = ~ eval(parse(text = .x))),
@@ -41,11 +36,4 @@ best <- data |>
     )
   )
 
-# TODO list
-# * Only pull data once per species and then combine the pull results with the
-#   configuration matrix again
-# * Fix how format_data returns an object without the nwfscSurvey class instead
-#   it is class(data) > [1] "tbl_df" "tbl" "data.frame"
-# * for vessel_year, might want a different level scaling things might not have
-#   to give this to grid
 
