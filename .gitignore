@@ -1,0 +1,17 @@
+
+.history
+.Rproj.user
+.Rhistory
+*.RData
+*.rds
+**/wcgbts/*
+**/afsc*
+**/nwfsc*
+**/triennial/*
+nul
+
+*.log
+*.tex
+bootstrap-*
+*.js
+*.html
