@@ -89,14 +89,15 @@ species_list <- c(benchmark_list)
 configuration_sub <-
   configuration_all |>
   dplyr::filter(
-    source == "NWFSC.Combo",
+    source %in% c("NWFSC.Combo", "Triennial"),
     species %in% benchmark_list,
     formula %in%
       c(
         "catch_weight ~ 0 + fyear*split_mendocino + pass_scaled",
         "catch_weight ~ 0 + fyear*split_mendocino"
       )
-  )
+  ) |>
+  dplyr::arrange(source)
 
 
 for (run in 1:nrow(configuration_sub)) {
@@ -111,13 +112,19 @@ for (run in 1:nrow(configuration_sub)) {
     dplyr::summarise(n = dplyr::n())
 
   lm <- lm(
-    formula = as.formula(configuration_to_run[run, "formula"]),
+    formula = as.formula(configuration_sub[run, "formula"]),
     data = my_data$data_filtered[[1]]
   )
   lm_pos <- lm(
-    formula = as.formula(configuration_to_run[run, "formula"]),
+    formula = as.formula(configuration_sub[run, "formula"]),
     data = dplyr::filter(my_data$data_filtered[[1]], catch_weight > 0)
   )
+  map_pres <- names(coef(lm))
+  map_pres <- factor(map_pres)
+  start_pres <- rep(0, length(map_pres))
+  map_pos <- names(coef(lm_pos))
+  map_pos <- factor(map_pos)
+  start_pos <- rep(0, length(map_pos))
 
   fit <- run_sdmtmb(
     data = my_data$data_filtered[[1]],
@@ -126,11 +133,15 @@ for (run in 1:nrow(configuration_sub)) {
     n_knots = my_data$knots,
     share_range = my_data$share_range,
     anisotropy = my_data$anisotropy,
-    spatiotemporal = list(my_data$spatiotemporal1, my_data$spatiotemporal2)
-  )
-
-  diag <- diagnose(
-    fit = fit
+    spatiotemporal = list(my_data$spatiotemporal1, my_data$spatiotemporal2),
+    sdmtmb_control = sdmTMB::sdmTMBcontrol(
+      map = list(
+        b_j = map_pres,
+        b_j2 = map_pos
+      ),
+      start = list(b_j = start_pres, b_j2 = start_pos),
+      newton_loops = 1
+    )
   )
 
   prediction_grid_north <- lookup_grid(
@@ -144,13 +155,6 @@ for (run in 1:nrow(configuration_sub)) {
     data = california_current_grid
   )
 
-  index_north <- calc_index_areas(
-    data = fit$data,
-    fit = fit,
-    prediction_grid = prediction_grid_north,
-    boundaries = "Coastwide"
-  )
-
   prediction_grid_south <- lookup_grid(
     x = fit$data[["survey_name"]][1],
     max_latitude = 40.167,
@@ -162,6 +166,23 @@ for (run in 1:nrow(configuration_sub)) {
     data = california_current_grid
   )
 
+  diag_north <- diagnose(
+    fit = fit,
+    prediction = prediction_grid_north
+  )
+
+  diag_south <- diagnose(
+    fit = fit,
+    prediction = prediction_grid_south
+  )
+
+  index_north <- calc_index_areas(
+    data = fit$data,
+    fit = fit,
+    prediction_grid = prediction_grid_north,
+    boundaries = "Coastwide"
+  )
+
   index_south <- calc_index_areas(
     data = fit$data,
     fit = fit,
@@ -171,15 +192,17 @@ for (run in 1:nrow(configuration_sub)) {
 
   save_index_outputs(
     fit = fit,
-    diagnostics = diag,
+    diagnostics = diag_north,
     indices = index_north,
-    dir = here::here("indices", "lingcod_with_area", "north")
+    dir = here::here("indices", "lingcod-north-split_mendocino"),
+    overwrite = TRUE
   )
 
   save_index_outputs(
     fit = fit,
-    diagnostics = diag,
+    diagnostics = diag_south,
     indices = index_south,
-    dir = here::here("indices", "lingcod_with_area", "south")
+    dir = here::here("indices", "lingcod-south-split_mendocino"),
+    overwrite = TRUE
   )
 }
